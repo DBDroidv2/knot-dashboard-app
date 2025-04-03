@@ -63,9 +63,9 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
   console.log(`[WebSocket Server] Connection established for user: ${user.email} (ID: ${user._id})`);
 
   // Spawn PowerShell process
-  // Use -NoExit to keep the shell running, -Command - to read from stdin
+  // Use -NoExit to keep the shell running interactively
   // Consider security implications of running PowerShell directly
-  const shellProcess = spawn('powershell.exe', ['-NoLogo', '-NoExit', '-Command', '-'], {
+  const shellProcess = spawn('powershell.exe', ['-NoLogo', '-NoExit'], { // Removed '-Command', '-'
       cwd: process.env.USERPROFILE || 'C:\\', // Start in user's home directory
       stdio: ['pipe', 'pipe', 'pipe'], // Pipe stdin, stdout, stderr
       windowsHide: true,
