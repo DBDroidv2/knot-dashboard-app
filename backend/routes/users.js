@@ -13,10 +13,10 @@ router.use(requireAuth);
 // GET /api/users/me
 router.get('/me', async (req, res) => {
   // req.user is attached by requireAuth middleware but might not have latest IP/timestamp
-  // Fetch the latest user data including the login history and displayName
+  // Fetch the latest user data including login history, displayName, and watchlist
   try {
-    // Select the loginHistory and displayName fields
-    const user = await User.findById(req.user._id).select('_id email createdAt loginHistory displayName'); // Added displayName
+    // Select the loginHistory, displayName, and watchlist fields
+    const user = await User.findById(req.user._id).select('_id email createdAt loginHistory displayName watchlist'); // Added watchlist
     if (!user) {
        // Should not happen if requireAuth worked
        return res.status(404).json({ message: 'User not found.' });
@@ -70,7 +70,7 @@ router.put('/me', async (req, res) => {
       userId,
       { $set: updates }, // Use $set to apply updates
       { new: true, runValidators: true }
-    ).select('_id email createdAt loginHistory displayName'); // Added displayName to returned user
+    ).select('_id email createdAt loginHistory displayName watchlist'); // Added watchlist to returned user
 
     if (!updatedUser) {
       // This case should ideally not be reached if requireAuth works correctly
@@ -142,6 +142,73 @@ router.put('/change-password', async (req, res) => {
     console.error('Change Password Error:', error);
     res.status(500).json({ message: 'Server error during password update.' });
   }
+});
+
+// --- ADD Symbol to Watchlist ---
+// POST /api/users/watchlist
+router.post('/watchlist', async (req, res) => {
+    const { symbol } = req.body;
+    const userId = req.user._id;
+
+    if (!symbol || typeof symbol !== 'string' || symbol.trim().length === 0) {
+        return res.status(400).json({ message: 'Stock symbol is required and must be a non-empty string.' });
+    }
+
+    const symbolToAdd = symbol.trim().toUpperCase(); // Standardize symbol format
+
+    try {
+        // Use $addToSet to add the symbol only if it doesn't already exist in the array
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $addToSet: { watchlist: symbolToAdd } },
+            { new: true } // Return the updated document
+        ).select('watchlist'); // Only select the watchlist field
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Check if the symbol was actually added (or if it was already present)
+        // Note: $addToSet doesn't indicate if an add occurred, just the final state.
+        // We could compare lengths before/after if needed, but usually returning the list is sufficient.
+        res.status(200).json({ watchlist: updatedUser.watchlist });
+
+    } catch (error) {
+        console.error('Add Watchlist Error:', error);
+        res.status(500).json({ message: 'Server error adding symbol to watchlist.' });
+    }
+});
+
+// --- REMOVE Symbol from Watchlist ---
+// DELETE /api/users/watchlist/:symbol
+router.delete('/watchlist/:symbol', async (req, res) => {
+    const { symbol } = req.params; // Get symbol from URL parameter
+    const userId = req.user._id;
+
+    if (!symbol || typeof symbol !== 'string' || symbol.trim().length === 0) {
+        return res.status(400).json({ message: 'Stock symbol parameter is required.' });
+    }
+
+    const symbolToRemove = symbol.trim().toUpperCase(); // Standardize symbol format
+
+    try {
+        // Use $pull to remove the specified symbol from the watchlist array
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $pull: { watchlist: symbolToRemove } },
+            { new: true } // Return the updated document
+        ).select('watchlist'); // Only select the watchlist field
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        res.status(200).json({ watchlist: updatedUser.watchlist });
+
+    } catch (error) {
+        console.error('Remove Watchlist Error:', error);
+        res.status(500).json({ message: 'Server error removing symbol from watchlist.' });
+    }
 });
 
 

@@ -54,9 +54,13 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const weatherRoutes = require('./routes/weather');
+const stockRoutes = require('./routes/stocks'); // Added stocks route
+const aiRoutes = require('./routes/ai'); // Added AI route
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/weather', weatherRoutes);
+app.use('/api/stocks', stockRoutes); // Use stocks route
+app.use('/api/ai', aiRoutes); // Use AI route
 
 // --- WebSocket Terminal Setup ---
 const wss = new WebSocketServer({ noServer: true });
