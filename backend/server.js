@@ -21,11 +21,11 @@ const server = http.createServer(app); // Keep http server for consistency, thou
 // JWT Secret (Should be in ENV VARS!)
 const JWT_SECRET = process.env.JWT_SECRET || 'YOUR_REALLY_SECRET_KEY_CHANGE_ME';
 
-// Simple Request Logger Middleware
-app.use((req, res, next) => {
-  console.log(`[Request Logger] ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-  next(); // Pass control to the next middleware
-});
+// Removed Simple Request Logger Middleware
+// app.use((req, res, next) => {
+//   console.log(`[Request Logger] ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+//   next(); // Pass control to the next middleware
+// });
 
 // Middleware
 app.use(cors({ // Enable CORS for the frontend origin
@@ -37,7 +37,7 @@ app.use(express.json()); // for parsing application/json
 
 // Connect to MongoDB
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log('MongoDB connected successfully.'))
+  .then(() => { /* console.log('MongoDB connected successfully.'); */ }) // Removed log
   .catch(err => {
     console.error('MongoDB connection error:', err);
     process.exit(1); // Exit if DB connection fails
@@ -51,8 +51,10 @@ app.get('/', (req, res) => {
 // --- API Routes ---
 const authRoutes = require('./routes/auth'); // Import auth routes
 const userRoutes = require('./routes/users'); // Import user routes
+const weatherRoutes = require('./routes/weather'); // Import weather routes
 app.use('/auth', authRoutes); // Mount auth routes under /auth path
 app.use('/api/users', userRoutes); // Mount user routes under /api/users path
+app.use('/api/weather', weatherRoutes); // Mount weather routes under /api/weather path
 
 // --- WebSocket Terminal Setup ---
 const wss = new WebSocketServer({ noServer: true }); // Don't attach directly, handle upgrade manually
@@ -60,7 +62,7 @@ const wss = new WebSocketServer({ noServer: true }); // Don't attach directly, h
 const activeShells = new Map(); // Store active shells per WebSocket connection
 
 wss.on('connection', (ws, req, user) => { // Receive user object from upgrade handler
-  console.log(`[WebSocket Server] Connection established for user: ${user.email} (ID: ${user._id})`);
+  console.log(`[WebSocket Server] Connection established for user: *** (ID: ${user._id})`); // Masked email
 
   // Spawn PowerShell process
   // Use -NoExit to keep the shell running interactively
@@ -72,12 +74,12 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
   });
 
   activeShells.set(ws, shellProcess); // Store the process
-  console.log(`[WebSocket Server] Spawned PowerShell process PID: ${shellProcess.pid} for user ${user.email}`);
+  console.log(`[WebSocket Server] Spawned PowerShell process PID: ${shellProcess.pid} for user: ***`); // Masked email
 
   // Send data from shell to WebSocket client
   shellProcess.stdout.on('data', (data) => {
     const output = data.toString();
-    console.log(`[PID:${shellProcess.pid}] stdout: ${output.substring(0, 100)}${output.length > 100 ? '...' : ''}`); // Log truncated output
+    // console.log(`[PID:${shellProcess.pid}] stdout: ${output.substring(0, 100)}${output.length > 100 ? '...' : ''}`); // Removed stdout log
     ws.send(output);
   });
   shellProcess.stderr.on('data', (data) => {
@@ -92,7 +94,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
     try {
         // Ensure message is a string before writing
         const command = message.toString();
-        console.log(`[PID:${shellProcess.pid}] Received command from ${user.email}: ${command.trim()}`);
+        // console.log(`[PID:${shellProcess.pid}] Received command from user: *** : ${command.trim()}`); // Removed received command log
         shellProcess.stdin.write(command);
         // Add newline if necessary, depending on how frontend sends commands
         if (!command.endsWith('\n')) {
@@ -106,7 +108,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
 
   // Handle shell process exit
   shellProcess.on('exit', (code, signal) => {
-    console.log(`[PID:${shellProcess.pid}] Shell process exited with code ${code}, signal ${signal} for user ${user.email}`);
+    console.log(`[PID:${shellProcess.pid}] Shell process exited with code ${code}, signal ${signal} for user: ***`); // Masked email
     activeShells.delete(ws);
     if (ws.readyState === ws.OPEN) {
       ws.send(`\n[Process exited with code ${code}]`);
@@ -116,7 +118,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
 
   // Handle shell process errors (e.g., spawn error)
   shellProcess.on('error', (err) => {
-    console.error(`[PID:${shellProcess.pid}] Shell process error for user ${user.email}:`, err);
+    console.error(`[PID:${shellProcess.pid}] Shell process error for user: *** :`, err); // Masked email
     activeShells.delete(ws);
      if (ws.readyState === ws.OPEN) {
         ws.send(`\n[Shell process error: ${err.message}]`);
@@ -126,7 +128,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
 
   // Handle WebSocket client closing connection
   ws.on('close', () => {
-    console.log(`[WebSocket Server] Connection closed for user: ${user.email}`);
+    console.log(`[WebSocket Server] Connection closed for user: ***`); // Masked email
     if (shellProcess && !shellProcess.killed) {
       console.log(`[WebSocket Server] Terminating shell process PID: ${shellProcess.pid} due to WebSocket close.`);
       // Use taskkill on Windows for more forceful termination if needed
@@ -139,7 +141,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
 
   // Handle WebSocket errors
   ws.on('error', (error) => {
-      console.error(`[WebSocket Server] WebSocket error for user ${user.email}:`, error);
+      console.error(`[WebSocket Server] WebSocket error for user: *** :`, error); // Masked email
       // Attempt to clean up shell if connection drops unexpectedly
       if (shellProcess && !shellProcess.killed) {
           console.log(`[WebSocket Server] Terminating shell process PID: ${shellProcess.pid} due to WebSocket error.`);
@@ -156,7 +158,7 @@ wss.on('connection', (ws, req, user) => { // Receive user object from upgrade ha
 // --- Authentication Logic for WebSocket Upgrade ---
 async function authenticateWebSocket(request, socket, head, callback) {
   const { pathname, query } = url.parse(request.url, true);
-  const remoteAddress = request.socket.remoteAddress; // Get client IP
+  const remoteAddress = request.socket.remoteAddress ? '***' : 'N/A'; // Mask client IP
 
   console.log(`[WebSocket Auth] Upgrade request received for path: ${pathname} from ${remoteAddress}`);
 
@@ -164,7 +166,7 @@ async function authenticateWebSocket(request, socket, head, callback) {
     const token = query.token; // Get token from query parameter
 
     if (!token) {
-      console.log(`[WebSocket Auth] Upgrade failed: No token provided from ${remoteAddress}.`);
+      console.log(`[WebSocket Auth] Upgrade failed: No token provided from ${remoteAddress}.`); // IP already masked
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;
@@ -175,13 +177,13 @@ async function authenticateWebSocket(request, socket, head, callback) {
       const user = await User.findById(decoded.id).select('_id email'); // Fetch necessary user info
 
       if (!user) {
-        console.log(`[WebSocket Auth] Upgrade failed: User not found for token ID: ${decoded.id} from ${remoteAddress}.`);
+        console.log(`[WebSocket Auth] Upgrade failed: User not found for token ID: ${decoded.id} from ${remoteAddress}.`); // IP already masked
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
       }
 
-      console.log(`[WebSocket Auth] Authentication successful for user: ${user.email} from ${remoteAddress}. Proceeding with upgrade.`);
+      console.log(`[WebSocket Auth] Authentication successful for user: *** from ${remoteAddress}. Proceeding with upgrade.`); // Masked email, IP already masked
       // Authentication successful, proceed with WebSocket upgrade
       // Pass user object to the 'connection' handler via callback
       callback(null, user);
@@ -194,7 +196,7 @@ async function authenticateWebSocket(request, socket, head, callback) {
     }
   } else {
     // If not the /terminal path, destroy the socket or handle differently
-    console.log(`[WebSocket Auth] Upgrade failed: Path not supported: ${pathname} from ${remoteAddress}.`);
+    console.log(`[WebSocket Auth] Upgrade failed: Path not supported: ${pathname} from ${remoteAddress}.`); // IP already masked
     socket.destroy();
   }
 }
@@ -217,8 +219,8 @@ server.on('upgrade', (request, socket, head) => {
 
 // Start the server
 server.listen(PORT, () => {
-  console.log(`Backend server listening on http://localhost:${PORT}`);
-  console.log(`WebSocket terminal endpoint available at ws://localhost:${PORT}/terminal`);
+  // console.log(`Backend server listening on http://localhost:${PORT}`); // Removed log
+  // console.log(`WebSocket terminal endpoint available at ws://localhost:${PORT}/terminal`); // Removed log
 });
 
 // Graceful shutdown

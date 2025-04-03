@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs'); // Import bcrypt
 const User = require('../models/User');
 const requireAuth = require('../middleware/requireAuth'); // Import auth middleware
 
@@ -10,10 +11,21 @@ router.use(requireAuth);
 
 // --- GET Logged-in User's Profile ---
 // GET /api/users/me
-router.get('/me', (req, res) => {
-  // req.user is attached by requireAuth middleware
-  // Return only non-sensitive data attached in middleware
-  res.status(200).json(req.user);
+router.get('/me', async (req, res) => {
+  // req.user is attached by requireAuth middleware but might not have latest IP/timestamp
+  // Fetch the latest user data including the login history
+  try {
+    // Select the loginHistory field, potentially limiting the number of entries returned
+    const user = await User.findById(req.user._id).select('_id email createdAt loginHistory'); // Include loginHistory
+    if (!user) {
+       // Should not happen if requireAuth worked
+       return res.status(404).json({ message: 'User not found.' });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+     console.error('Get Profile Error:', error);
+     res.status(500).json({ message: 'Server error fetching profile.' });
+  }
 });
 
 // --- UPDATE Logged-in User's Profile ---
@@ -58,7 +70,7 @@ router.put('/me', async (req, res) => {
       userId,
       { $set: updates }, // Use $set to apply updates
       { new: true, runValidators: true }
-    ).select('_id email createdAt'); // Select only non-sensitive fields to return
+    ).select('_id email createdAt loginHistory'); // Include loginHistory in returned updated user
 
     if (!updatedUser) {
       // This case should ideally not be reached if requireAuth works correctly
@@ -83,5 +95,54 @@ router.put('/me', async (req, res) => {
     res.status(500).json({ message: 'Server error during profile update.' });
   }
 });
+
+// --- CHANGE Logged-in User's Password ---
+// PUT /api/users/change-password
+router.put('/change-password', async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user._id; // Get user ID from authenticated request
+
+  // --- Validation ---
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current password and new password are required.' });
+  }
+  if (newPassword.length < 8) { // Ensure minimum length (should match frontend validation)
+    return res.status(400).json({ message: 'New password must be at least 8 characters long.' });
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ message: 'New password cannot be the same as the current password.' });
+  }
+
+  try {
+    // --- Fetch User with plain text password ---
+    // Need to fetch the user again, this time including the plain password field
+    const user = await User.findById(userId).select('+password'); // Select plain password field
+    if (!user) {
+      // Should not happen if requireAuth is working
+      console.warn(`Change Password: User not found after auth check for ID: ${userId}`);
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // !! INSECURE: Direct password comparison for experiment !!
+    // --- Verify Current Password ---
+    if (currentPassword !== user.password) {
+      return res.status(401).json({ message: 'Incorrect current password.' });
+    }
+    // !! END INSECURE !!
+
+    // !! INSECURE: Update plain text password !!
+    // --- Update Password in Database ---
+    user.password = newPassword; // Save new plain text password
+    await user.save(); // Save the updated user document
+    // !! END INSECURE !!
+
+    res.status(200).json({ message: 'Password updated successfully (plain text).' });
+
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    res.status(500).json({ message: 'Server error during password update.' });
+  }
+});
+
 
 module.exports = router;
