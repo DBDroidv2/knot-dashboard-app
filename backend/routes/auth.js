@@ -116,7 +116,7 @@ router.post('/login', async (req, res) => {
 
         if (geoResponse.data && geoResponse.data.status === 'success') {
           geoData.city = geoResponse.data.city;
-          geoData.city = geoResponse.data.city;
+          geoData.city = geoResponse.data.city; // Duplicate line, keeping as is from original
           geoData.region = geoResponse.data.regionName;
           geoData.country = geoResponse.data.country;
           console.log(`[Auth Route] Geolocation successful for IP: ***`); // Masked IP
