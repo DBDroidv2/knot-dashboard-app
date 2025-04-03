@@ -6,8 +6,8 @@ const User = require('../models/User'); // Adjust path if necessary
 
 const router = express.Router();
 
-// Placeholder for JWT secret (MOVE TO ENV VARIABLE IN PRODUCTION!)
-const JWT_SECRET = process.env.JWT_SECRET || 'YOUR_REALLY_SECRET_KEY_CHANGE_ME';
+// Use JWT secret from environment variables (validated in server.js)
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '1d'; // Token expiry time (e.g., 1 day)
 
 // --- Helper Function to Generate JWT ---

@@ -24,7 +24,13 @@ const UserSchema = new mongoose.Schema({
     region: { type: String },
     country: { type: String },
     // Add other geo fields if needed (e.g., ISP, coordinates)
-  }]
+  }],
+  displayName: {
+    type: String,
+    trim: true,
+    maxlength: 50, // Example length limit
+    default: null,
+  }
   // Removed lastLoginIp and lastLoginAt
 }, {
   timestamps: true // Adds createdAt and updatedAt timestamps automatically

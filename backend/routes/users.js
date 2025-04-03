@@ -13,10 +13,10 @@ router.use(requireAuth);
 // GET /api/users/me
 router.get('/me', async (req, res) => {
   // req.user is attached by requireAuth middleware but might not have latest IP/timestamp
-  // Fetch the latest user data including the login history
+  // Fetch the latest user data including the login history and displayName
   try {
-    // Select the loginHistory field, potentially limiting the number of entries returned
-    const user = await User.findById(req.user._id).select('_id email createdAt loginHistory'); // Include loginHistory
+    // Select the loginHistory and displayName fields
+    const user = await User.findById(req.user._id).select('_id email createdAt loginHistory displayName'); // Added displayName
     if (!user) {
        // Should not happen if requireAuth worked
        return res.status(404).json({ message: 'User not found.' });
@@ -32,8 +32,7 @@ router.get('/me', async (req, res) => {
 // PUT /api/users/me
 router.put('/me', async (req, res) => {
   // Only allow updating specific, non-sensitive fields from the request body.
-  // Password updates should have a dedicated, more secure endpoint.
-  const { email /*, displayName */ } = req.body; // Add other updatable fields here
+  const { email, displayName } = req.body; // Include displayName
   const userId = req.user._id; // Get user ID from authenticated request (attached by requireAuth)
 
   // --- Build Updates Object ---
@@ -45,9 +44,10 @@ router.put('/me', async (req, res) => {
     }
     updates.email = email.trim().toLowerCase();
   }
-  // if (displayName !== undefined) { // Example: allow updating display name
-  //    updates.displayName = displayName.trim();
-  // }
+  if (displayName !== undefined) { // Allow updating display name
+     // Add validation if needed (e.g., length)
+     updates.displayName = displayName.trim();
+  }
 
   if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: 'No valid fields provided for update.' });
@@ -70,7 +70,7 @@ router.put('/me', async (req, res) => {
       userId,
       { $set: updates }, // Use $set to apply updates
       { new: true, runValidators: true }
-    ).select('_id email createdAt loginHistory'); // Include loginHistory in returned updated user
+    ).select('_id email createdAt loginHistory displayName'); // Added displayName to returned user
 
     if (!updatedUser) {
       // This case should ideally not be reached if requireAuth works correctly

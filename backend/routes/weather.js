@@ -7,7 +7,8 @@ const router = express.Router();
 // Protect this route
 router.use(requireAuth);
 
-const OPENWEATHER_API_KEY = '328d585bf0ec474eb7244d94e8251138'; // Use the provided key
+// Use OpenWeather API key from environment variables
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const DEFAULT_CITY = 'London'; // Default city as fallback
 
 // GET /weather?ip=...

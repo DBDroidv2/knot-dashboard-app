@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const http = require('http');
@@ -8,10 +11,20 @@ const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const cors = require('cors');
 
-// Basic configuration
+// Basic configuration using environment variables
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/knot_dashboard';
-const JWT_SECRET = process.env.JWT_SECRET || 'YOUR_REALLY_SECRET_KEY_CHANGE_ME';
+const MONGODB_URI = process.env.MONGODB_URI; // Get from .env
+const JWT_SECRET = process.env.JWT_SECRET; // Get from .env
+
+// Validate essential environment variables
+if (!MONGODB_URI) {
+    console.error("FATAL ERROR: MONGODB_URI environment variable is not set.");
+    process.exit(1);
+}
+if (!JWT_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET environment variable is not set.");
+    process.exit(1);
+}
 
 // Initialize Express app and HTTP server
 const app = express();
@@ -202,11 +215,27 @@ wss.on('connection', (ws, request, user) => {
 
   ws.on('message', (message) => {
     try {
-        const command = message.toString();
-        const session = userShells.get(userIdString); // Get the potentially updated session
+        const messageString = message.toString();
+        let command = messageString; // Assume it's a command by default
+
+        // Check for special action message
+        try {
+            const parsedMessage = JSON.parse(messageString);
+            if (parsedMessage && parsedMessage.action === 'terminate_session') {
+                console.log(`[WebSocket Server] Received terminate request for user ID: ${userIdString}`);
+                terminateUserProcess(userIdString); // Terminate the process
+                // Optionally close the WebSocket from backend too? ws.close();
+                return; // Stop further processing
+            }
+        } catch (e) {
+            // Not a JSON message, treat as a command - ignore error
+        }
+
+        // If it wasn't a terminate message, process as command
+        const session = userShells.get(userIdString);
         if (session?.process && !session.process.killed) {
-            // Add command to history buffer as well? Optional.
-            // session.historyBuffer.push(`cmd: ${command}`); // Example prefix
+            // Add command to history buffer? Optional.
+            // session.historyBuffer.push(`cmd: ${command}`);
             // if (session.historyBuffer.length > MAX_HISTORY_LINES) { session.historyBuffer.shift(); }
 
             session.process.stdin.write(command);
