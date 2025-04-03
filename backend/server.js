@@ -53,6 +53,7 @@ const userShells = new Map();
 const MAX_HISTORY_LINES = 1000; // Limit buffer size
 
 // Helper function to terminate a user's session process
+// DEFINED EARLIER TO BE IN SCOPE FOR SIGINT HANDLER
 function terminateUserProcess(userIdString) {
     const existingSession = userShells.get(userIdString);
     if (existingSession?.process && !existingSession.process.killed) {
@@ -68,9 +69,14 @@ function terminateUserProcess(userIdString) {
         // Mark process as null after attempting kill - process might take time to die
         existingSession.process = null;
     }
+    // Always remove from map after attempting termination
+    if (userShells.has(userIdString)) {
+        userShells.delete(userIdString);
+        console.log(`[WebSocket Server] Removed session entry for user ID: ${userIdString}`);
+    }
 }
 
-// Handle new WebSocket connections
+// --- WebSocket Connection Handler ---
 wss.on('connection', (ws, request, user) => {
   const userIdString = user._id.toString();
   console.log(`[WebSocket Server] Connection attempt for user: *** (ID: ${userIdString})`);
@@ -240,6 +246,7 @@ wss.on('connection', (ws, request, user) => {
   });
 });
 
+
 // --- Authentication Logic for WebSocket Upgrade ---
 async function authenticateWebSocket(request, socket, head, callback) {
   const { pathname, query } = url.parse(request.url, true);
@@ -302,8 +309,8 @@ process.on('SIGINT', async () => {
   console.log('SIGINT signal received: closing MongoDB connection and server.');
   // Terminate all active shell processes before closing server
   console.log('[Shutdown] Terminating active shell processes...');
-  for (const userId of userShells.keys()) {
-      terminateUserSession(userId); // Use helper to kill and remove
+  for (const userIdString of userShells.keys()) { // Iterate using the correct key type
+      terminateUserProcess(userIdString); // Call the helper function (now defined above)
   }
   await mongoose.connection.close();
   server.close(() => {
